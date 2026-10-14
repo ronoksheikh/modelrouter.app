@@ -1,0 +1,43 @@
+# Local / single-server deployment: Postgres + Go API + Next.js web.
+#   cp backend/.env.example backend/.env && cp web/.env.example web/.env   # fill in secrets
+#   docker compose up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: modelrouter
+      POSTGRES_PASSWORD: modelrouter
+      POSTGRES_DB: modelrouter
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U modelrouter"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgres://modelrouter:modelrouter@db:5432/modelrouter?sslmode=disable
+    ports: ["8080:8080"]
+    depends_on:
+      db: { condition: service_healthy }
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+        NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: ${NEXT_PUBLIC_PADDLE_CLIENT_TOKEN:-}
+    env_file: ./web/.env
+    environment:
+      BACKEND_URL: http://api:8080
+    ports: ["3000:3000"]
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  pgdata:

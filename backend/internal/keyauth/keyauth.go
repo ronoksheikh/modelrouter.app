@@ -66,7 +66,12 @@ func (c *Cache) Lookup(ctx context.Context, rawKey string) (*store.KeyAuth, erro
 	if err != nil {
 		return nil, err
 	}
-	c.pos.Set(hash, a, c.ttl)
+	ttl := c.ttl
+	if a.SpendLimit != nil {
+		// Spend-limited keys re-read their persisted spend often so the limit stays tight.
+		ttl = 5 * time.Second
+	}
+	c.pos.Set(hash, a, ttl)
 	return a, nil
 }
 
